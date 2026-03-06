@@ -37,17 +37,20 @@ class AdminService {
      * 3. Register Participant
      * Logic to link a candidate to a valid category
      */
-    async registerParticipant(name, categoryKey) {
-        const category = await Category.findOne({ key: categoryKey.toLowerCase() });
-        if (!category) throw new Error("Category not found");
+   async registerParticipant(name, categoryKey) {
+    // 1. Safety check: ensure categoryKey exists before calling .toLowerCase()
+    if (!categoryKey) throw new Error("categoryKey is required to register a participant");
+    if (!name) throw new Error("Participant name is required");
 
-        return await Participant.create({
-            name,
-            category: category._id,
-            voteCount: 0
-        });
-    }
+    const category = await Category.findOne({ key: categoryKey.toLowerCase() });
+    if (!category) throw new Error(`Category with key '${categoryKey}' not found`);
 
+    return await Participant.create({
+        name,
+        category: category._id,
+        voteCount: 0
+    });
+}
     /**
      * 4. Fetch Total Participants
      * Used for the admin dashboard count

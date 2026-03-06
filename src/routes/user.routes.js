@@ -9,5 +9,9 @@ router.get('/ballot', userController.getBallot);
 // POST a vote for a candidate
 // URL: POST http://localhost:3000/api/user/vote
 router.post('/vote', userController.castVote);
+router.post('/login', userController.login);
+
+// URL: POST http://localhost:3000/api/user/register
+router.post('/register', userController.register);
 
 module.exports = router;

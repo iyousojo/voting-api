@@ -1,7 +1,8 @@
 const Participant = require('../models/Participant');
 const Category = require('../models/Category');
 const Election = require('../models/Election');
-const Voter = require('../models/Voter'); // For tracking voters and preventing double voting
+const Voter = require('../models/Voter');
+const EligibleVoter = require('../models/EligibleVoter'); // For tracking voters and preventing double voting
 
 class UserService {
     /**
@@ -26,59 +27,69 @@ class UserService {
      * 2. Process a Vote
      * Validates election status, student ID uniqueness, and device fingerprint limits.
      */
-   /**
-     * 2. Process a Vote
-     * Enhanced with Student ID check AND Device Fingerprint security
-     */
-    async processVote(participantId, voterId, deviceHash) {
-        // 1. Election status check
-        const election = await Election.findOne();
-        if (!election || !election.isOpen || new Date() > election.endTime) {
-            throw new Error("Election is closed or expired.");
-        }
-
-        // 2. Security Check: Prevent "Bulk Voting" from one device
-        // Example: Allow maximum 3 different students per device (for shared labs/library)
-        const deviceUsageCount = await Voter.countDocuments({ deviceHash });
-        if (deviceUsageCount >= 3) {
-            throw new Error("Security alert: This device has reached the maximum allowed voting limit.");
-        }
-
-        // 3. Find the candidate to identify the category
-        const candidate = await Participant.findById(participantId);
-        if (!candidate) throw new Error("Candidate not found.");
-
-        // 4. Check/Create Voter record and prevent double voting
-        let voter = await Voter.findOne({ voterId });
-
-        if (!voter) {
-            // New voter: Save their ID and their device fingerprint
-            voter = new Voter({ 
-                voterId, 
-                deviceHash, 
-                votedCategories: [] 
-            });
-        }
-
-        // 5. Category Check: Prevent double voting in the same position
-        if (voter.votedCategories.includes(candidate.category)) {
-            throw new Error("You have already cast a vote in this category.");
-        }
-
-        // 6. Persistence: Increment candidate and update voter history
-        // Using save() here is fine for simple logic, but for high traffic 
-        // you'd use findByIdAndUpdate with $inc for the candidate.
-        candidate.voteCount += 1;
-        await candidate.save();
-
-        voter.votedCategories.push(candidate.category);
-        await voter.save();
-
-        return { 
-            message: "Vote cast successfully", 
-            receipt: { voter: voterId, category: candidate.category } 
-        };
+  /**
+ * 2. Process a Vote
+ * logic: Validates Whitelist (Mat Number), Checks Device Limits, and Prevents Double Voting
+ */
+async processVote(participantId, matNumber, deviceHash) {
+    // 1. Election status check
+    const election = await Election.findOne();
+    if (!election || !election.isOpen || new Date() > election.endTime) {
+        throw new Error("Election is closed or expired.");
     }
+
+    // 2. WHITELIST CHECK: Is this a valid student?
+    // We use matNumber here because it's the unique identifier for the student
+    const eligibleStudent = await EligibleVoter.findOne({ 
+        matNumber: matNumber.toUpperCase() 
+    });
+
+    if (!eligibleStudent) {
+        throw new Error("Unauthorized: You are not registered in the voter whitelist.");
+    }
+
+    // 3. Security Check: Prevent "Bulk Voting" from one device
+    const deviceUsageCount = await Voter.countDocuments({ deviceHash });
+    if (deviceUsageCount >= 3) {
+        throw new Error("Security alert: Device voting limit reached.");
+    }
+
+    // 4. Find the candidate to identify the category
+    const candidate = await Participant.findById(participantId);
+    if (!candidate) throw new Error("Candidate not found.");
+
+    // 5. Check/Create Voter record (the actual voting history)
+    let voter = await Voter.findOne({ voterId: matNumber });
+
+    if (!voter) {
+        voter = new Voter({ 
+            voterId: matNumber, 
+            deviceHash, 
+            votedCategories: [] 
+        });
+    }
+
+    // 6. Category Check: Prevent double voting in the same position
+    if (voter.votedCategories.includes(candidate.category)) {
+        throw new Error("You have already cast a vote in this category.");
+    }
+
+    // 7. Persistence: Atomic updates
+    candidate.voteCount += 1;
+    await candidate.save();
+
+    voter.votedCategories.push(candidate.category);
+    await voter.save();
+
+    // 8. Update Whitelist status
+    eligibleStudent.hasVoted = true;
+    await eligibleStudent.save();
+
+    return { 
+        message: "Vote cast successfully", 
+        receipt: { voter: matNumber, category: candidate.category } 
+    };
+}
 }
 
 module.exports = new UserService();

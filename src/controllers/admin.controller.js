@@ -16,6 +16,15 @@ class AdminController {
     async addParticipant(req, res) {
         try {
             const { name, categoryKey } = req.body;
+
+            // 🛡️ Defensive Check: If these are missing, throw error early
+            if (!name || !categoryKey) {
+                return res.status(400).json({ 
+                    status: "error", 
+                    message: "Missing required fields: 'name' and 'categoryKey' are both mandatory." 
+                });
+            }
+
             const participant = await adminService.registerParticipant(name, categoryKey);
             res.status(201).json({ status: "success", data: participant });
         } catch (error) {
