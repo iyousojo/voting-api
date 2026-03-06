@@ -121,7 +121,39 @@ class UserController {
 
             res.status(statusCode).json({ status: "error", message: error.message });
         }
+        
+
+        
     }
+
+    /**
+     * 3. GET user's cast votes
+     * Fetches what the user actually voted for
+     */
+    async getMyVote(req, res) {
+        try {
+            const { voterId } = req.params; // This is the matNumber
+
+            if (!voterId) {
+                return res.status(400).json({ status: "error", message: "Voter ID is required" });
+            }
+
+            // We call a service to fetch the specific choices from the database
+            const voteDetails = await userService.getUserVoteRecord(voterId);
+
+            if (!voteDetails) {
+                return res.status(404).json({ status: "error", message: "No vote record found for this user." });
+            }
+
+            res.status(200).json({ 
+                status: "success", 
+                data: voteDetails // Should contain an array of { positionName, candidateName }
+            });
+        } catch (error) {
+            res.status(500).json({ status: "error", message: error.message });
+        }
+    }
+    
 }
 
 module.exports = new UserController();

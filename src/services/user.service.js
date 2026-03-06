@@ -90,6 +90,25 @@ async processVote(participantId, matNumber, deviceHash) {
         receipt: { voter: matNumber, category: candidate.category } 
     };
 }
+
+// Inside user.service.js
+async getUserVoteRecord(voterId) {
+    // 1. Find the voter
+    const voter = await EligibleVoter.findOne({ matNumber: voterId });
+    if (!voter || !voter.hasVoted) return null;
+
+    // 2. Fetch the actual votes from your Votes collection
+    // Replace 'VoteModel' with your actual Vote model name
+    const votes = await VoteModel.find({ voterId: voterId }).populate('candidateId');
+
+    // 3. Format it for the frontend
+    return {
+        votes: votes.map(v => ({
+            positionName: v.positionName, // or v.candidateId.position
+            candidateName: v.candidateId.fullName
+        }))
+    };
+}
 }
 
 module.exports = new UserService();
