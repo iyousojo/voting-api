@@ -7,19 +7,20 @@ const EligibleVoter = require('../models/EligibleVoter');
 class UserService {
     /**
      * 1. Get Available Candidates (Ballot)
+     * FIXED: Mapped 'p.name' instead of 'p.fullName'
      */
     async getAvailableCandidates() {
         const categories = await Category.find().lean();
         const participants = await Participant.find().lean();
 
         return categories.map(cat => ({
-            positionName: cat.name, // Matches frontend expectations
+            positionName: cat.name, 
             positionId: cat._id,
             candidates: participants
                 .filter(p => p.category.toString() === cat._id.toString())
                 .map(p => ({
                     candidateId: p._id,
-                    fullName: p.fullName,
+                    name: p.name, // Changed from p.fullName to p.name
                     imageUrl: p.imageUrl,
                     level: p.level
                 }))
@@ -28,7 +29,7 @@ class UserService {
 
     /**
      * 2. Process a Vote
-     * Updated to store candidate details inside the Voter record
+     * FIXED: Changed candidateName mapping to candidate.name
      */
     async processVote(participantId, matNumber, deviceHash) {
         const election = await Election.findOne();
@@ -59,7 +60,7 @@ class UserService {
                 voterId: matNumber.toUpperCase(), 
                 deviceHash, 
                 votedCategories: [],
-                selections: [] // Ensure your Voter Schema has this array
+                selections: [] 
             });
         }
 
@@ -75,7 +76,7 @@ class UserService {
         voter.votedCategories.push(candidate.category._id);
         voter.selections.push({
             positionName: candidate.category.name,
-            candidateName: candidate.fullName
+            candidateName: candidate.name // Changed from fullName to name
         });
         
         await voter.save();
@@ -91,14 +92,11 @@ class UserService {
 
     /**
      * 3. Get User Vote Record
-     * Retrieves the specific candidates this user voted for
      */
     async getUserVoteRecord(voterId) {
-        // 1. Find the voter record in the main Voter collection
         const voter = await Voter.findOne({ voterId: voterId.toUpperCase() });
         
         if (!voter) {
-            // Fallback: Check whitelist if they voted but record is missing
             const eligible = await EligibleVoter.findOne({ matNumber: voterId.toUpperCase() });
             if (eligible && eligible.hasVoted) {
                 return { votes: [], message: "Vote cast, but details unavailable." };
@@ -106,7 +104,6 @@ class UserService {
             return null;
         }
 
-        // 2. Return the selections we stored during processVote
         return {
             votes: voter.selections && voter.selections.length > 0 
                 ? voter.selections 
