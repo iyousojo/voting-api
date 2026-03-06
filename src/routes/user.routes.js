@@ -13,5 +13,7 @@ router.post('/login', userController.login);
 
 // URL: POST http://localhost:3000/api/user/register
 router.post('/register', userController.register);
+// Add this line to your existing routes
+router.get('/my-vote/:voterId', userController.getMyVote);
 
 module.exports = router;
