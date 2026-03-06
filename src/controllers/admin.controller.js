@@ -1,95 +1,82 @@
 const adminService = require('../services/admin.service');
+const Admin = require('../models/Admin');
+const jwt = require('jsonwebtoken');
+const bcrypt = require('bcryptjs');
 
 class AdminController {
-    // 1. Setup the Election (Set Duration)
-    async setupElection(req, res) {
+    // Auth: Register a new Admin
+    async register(req, res) {
         try {
-            const { title, durationHours } = req.body;
-            const election = await adminService.initializeElection(title, durationHours);
-            res.status(200).json({ status: "success", data: election });
+            const { username, password, adminSecret } = req.body;
+            if (adminSecret !== process.env.ADMIN_REGISTRATION_SECRET) {
+                return res.status(403).json({ status: "error", message: "Invalid Secret Key" });
+            }
+            const admin = new Admin({ username, password });
+            await admin.save();
+            res.status(201).json({ status: "success", message: "Admin created" });
         } catch (error) {
             res.status(400).json({ status: "error", message: error.message });
         }
     }
 
-    // 2. Add a Participant to a Category (Updated with LEVEL)
+    // Auth: Login Admin
+    async login(req, res) {
+        try {
+            const { username, password } = req.body;
+            const admin = await Admin.findOne({ username });
+            if (!admin || !(await bcrypt.compare(password, admin.password))) {
+                return res.status(401).json({ status: "error", message: "Invalid credentials" });
+            }
+            const token = jwt.sign({ id: admin._id, role: 'admin' }, process.env.JWT_SECRET, { expiresIn: '1d' });
+            res.status(200).json({ status: "success", token });
+        } catch (error) {
+            res.status(500).json({ status: "error", message: error.message });
+        }
+    }
+
     async addParticipant(req, res) {
         try {
-            // Destructured 'level' from the request body
-            const { name, categoryKey, level } = req.body;
+            const { name, categoryKey, level, manifesto } = req.body;
+            const imagePath = req.file ? req.file.path : null;
 
-            // 🛡️ Updated Defensive Check
-            if (!name || !categoryKey || !level) {
-                return res.status(400).json({ 
-                    status: "error", 
-                    message: "Missing required fields: 'name', 'categoryKey', and 'level' are all mandatory." 
-                });
-            }
+            if (!name || !categoryKey || !level) throw new Error("Missing required fields");
 
-            // Optional: Extra validation to match your Schema Enum
-            const validLevels = ['100L', '200L', '300L', '400L', '500L', 'Spillover'];
-            if (!validLevels.includes(level)) {
-                return res.status(400).json({
-                    status: "error",
-                    message: `Invalid level. Must be one of: ${validLevels.join(', ')}`
-                });
-            }
-
-            // Pass 'level' to the service
-            const participant = await adminService.registerParticipant(name, categoryKey, level);
-            
+            const participant = await adminService.registerParticipant(name, categoryKey, level, manifesto, imagePath);
             res.status(201).json({ status: "success", data: participant });
         } catch (error) {
             res.status(400).json({ status: "error", message: error.message });
         }
     }
 
-    // 3. GET Total Participants 
+    async setupElection(req, res) {
+        try {
+            const { title, durationHours } = req.body;
+            const election = await adminService.initializeElection(title, durationHours);
+            res.status(200).json({ status: "success", data: election });
+        } catch (error) { res.status(400).json({ status: "error", message: error.message }); }
+    }
+
     async getTotalParticipants(req, res) {
-        try {
-            const total = await adminService.fetchTotalParticipants();
-            res.status(200).json({ status: "success", count: total });
-        } catch (error) {
-            res.status(500).json({ status: "error", message: error.message });
-        }
+        const total = await adminService.fetchTotalParticipants();
+        res.status(200).json({ status: "success", count: total });
     }
 
-    // 4. GET Total Votes 
     async getTotalVotes(req, res) {
-        try {
-            const total = await adminService.fetchTotalVotes();
-            res.status(200).json({ status: "success", total_votes: total });
-        } catch (error) {
-            res.status(500).json({ status: "error", message: error.message });
-        }
+        const total = await adminService.fetchTotalVotes();
+        res.status(200).json({ status: "success", total_votes: total });
     }
 
-    // 5. GET Leaderboard/Winners
     async getResults(req, res) {
-        try {
-            const results = await adminService.getLiveLeaderboard();
-            res.status(200).json({ status: "success", results });
-        } catch (error) {
-            res.status(500).json({ status: "error", message: error.message });
-        }
+        const results = await adminService.getLiveLeaderboard();
+        res.status(200).json({ status: "success", results });
     }
 
     async createCategory(req, res) {
         try {
             const { name, key } = req.body; 
             const category = await adminService.addCategory(name, key);
-            
-            res.status(201).json({ 
-                status: "success", 
-                message: "Category created successfully",
-                data: category 
-            });
-        } catch (error) {
-            res.status(400).json({ 
-                status: "error", 
-                message: error.message 
-            });
-        }
+            res.status(201).json({ status: "success", data: category });
+        } catch (error) { res.status(400).json({ status: "error", message: error.message }); }
     }
 }
 
