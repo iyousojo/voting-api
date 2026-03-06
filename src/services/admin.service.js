@@ -1,6 +1,14 @@
+const cloudinary = require('cloudinary').v2;
 const Participant = require('../models/Participant');
 const Category = require('../models/Category');
 const Election = require('../models/Election');
+
+// Configure Cloudinary (Keep these in your .env file)
+cloudinary.config({ 
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
+    api_key: process.env.CLOUDINARY_API_KEY, 
+    api_secret: process.env.CLOUDINARY_API_SECRET 
+});
 
 class AdminService {
     /**
@@ -31,9 +39,9 @@ class AdminService {
     }
 
     /**
-     * 3. Register Participant (Updated with LEVEL)
+     * 3. Register Participant (Updated with Level, Manifesto, and Cloudinary Image)
      */
-    async registerParticipant(name, categoryKey, level) {
+    async registerParticipant(name, categoryKey, level, manifesto, imageFile) {
         // Validation checks
         if (!categoryKey) throw new Error("categoryKey is required");
         if (!name) throw new Error("Participant name is required");
@@ -42,11 +50,30 @@ class AdminService {
         const category = await Category.findOne({ key: categoryKey.toLowerCase() });
         if (!category) throw new Error(`Category with key '${categoryKey}' not found`);
 
-        // Create the participant with the level field
+        let imageUrl = "https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg"; 
+
+        // Upload to Cloudinary if an image file exists
+        if (imageFile) {
+            try {
+                const uploadRes = await cloudinary.uploader.upload(imageFile, {
+                    folder: "nacos_elections",
+                    transformation: [
+                        { width: 500, height: 500, crop: "fill", gravity: "face" }
+                    ]
+                });
+                imageUrl = uploadRes.secure_url;
+            } catch (error) {
+                console.error("Cloudinary Error:", error);
+                throw new Error("Image upload failed");
+            }
+        }
+
         return await Participant.create({
             name,
-            level, // New field saved here
+            level,
+            manifesto,
             category: category._id,
+            profileImage: imageUrl,
             voteCount: 0
         });
     }
@@ -77,7 +104,6 @@ class AdminService {
      * 6. Get Live Results
      */
     async getLiveLeaderboard() {
-        // Finding participants and populating category
         const participants = await Participant.find()
             .populate('category')
             .sort({ voteCount: -1 });
@@ -90,7 +116,9 @@ class AdminService {
             electionStatus: isExpired ? "Closed" : "Active",
             results: participants.map(p => ({
                 name: p.name,
-                level: p.level, // Level included in results
+                level: p.level,
+                manifesto: p.manifesto,
+                profileImage: p.profileImage,
                 category: p.category ? p.category.name : "Uncategorized",
                 votes: p.voteCount
             }))

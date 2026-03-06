@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const adminController = require('../controllers/admin.controller');
+const upload = require('../middlewares/upload'); // 👈 Import your Multer middleware
 
 // --- Category Management ---
 // Endpoint: POST /api/admin/categories
@@ -8,7 +9,8 @@ router.post('/categories', adminController.createCategory);
 
 // --- Participant Management ---
 // Endpoint: POST /api/admin/participants
-router.post('/participants', adminController.addParticipant);
+// 🚀 Added 'upload.single' to handle the image before it reaches the controller
+router.post('/participants', upload.single('profileImage'), adminController.addParticipant);
 
 // --- Election Management ---
 // Endpoint: POST /api/admin/setup

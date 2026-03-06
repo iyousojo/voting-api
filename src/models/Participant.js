@@ -20,6 +20,10 @@ const ParticipantSchema = new mongoose.Schema({
             message: '{VALUE} is not a valid level'
         }
     },
+    profileImage: {
+        type: String,
+        default: "https://res.cloudinary.com/demo/image/upload/v1312461204/sample.jpg" // Default placeholder
+    },
     // Optional: Add a bio or manifesto snippet
     manifesto: {
         type: String,
