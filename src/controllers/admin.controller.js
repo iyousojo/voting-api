@@ -12,20 +12,32 @@ class AdminController {
         }
     }
 
-    // 2. Add a Participant to a Category
+    // 2. Add a Participant to a Category (Updated with LEVEL)
     async addParticipant(req, res) {
         try {
-            const { name, categoryKey } = req.body;
+            // Destructured 'level' from the request body
+            const { name, categoryKey, level } = req.body;
 
-            // 🛡️ Defensive Check: If these are missing, throw error early
-            if (!name || !categoryKey) {
+            // 🛡️ Updated Defensive Check
+            if (!name || !categoryKey || !level) {
                 return res.status(400).json({ 
                     status: "error", 
-                    message: "Missing required fields: 'name' and 'categoryKey' are both mandatory." 
+                    message: "Missing required fields: 'name', 'categoryKey', and 'level' are all mandatory." 
                 });
             }
 
-            const participant = await adminService.registerParticipant(name, categoryKey);
+            // Optional: Extra validation to match your Schema Enum
+            const validLevels = ['100L', '200L', '300L', '400L', '500L', 'Spillover'];
+            if (!validLevels.includes(level)) {
+                return res.status(400).json({
+                    status: "error",
+                    message: `Invalid level. Must be one of: ${validLevels.join(', ')}`
+                });
+            }
+
+            // Pass 'level' to the service
+            const participant = await adminService.registerParticipant(name, categoryKey, level);
+            
             res.status(201).json({ status: "success", data: participant });
         } catch (error) {
             res.status(400).json({ status: "error", message: error.message });
@@ -62,26 +74,23 @@ class AdminController {
         }
     }
 
-
-
-async createCategory(req, res) {
-    try {
-        const { name, key } = req.body; 
-        // Logic: Pass data to service to create the category
-        const category = await adminService.addCategory(name, key);
-        
-        res.status(201).json({ 
-            status: "success", 
-            message: "Category created successfully",
-            data: category 
-        });
-    } catch (error) {
-        res.status(400).json({ 
-            status: "error", 
-            message: error.message 
-        });
+    async createCategory(req, res) {
+        try {
+            const { name, key } = req.body; 
+            const category = await adminService.addCategory(name, key);
+            
+            res.status(201).json({ 
+                status: "success", 
+                message: "Category created successfully",
+                data: category 
+            });
+        } catch (error) {
+            res.status(400).json({ 
+                status: "error", 
+                message: error.message 
+            });
+        }
     }
-}
 }
 
 module.exports = new AdminController();

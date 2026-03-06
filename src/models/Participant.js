@@ -8,8 +8,23 @@ const ParticipantSchema = new mongoose.Schema({
     },
     category: { 
         type: mongoose.Schema.Types.ObjectId, 
-        ref: 'Category', // Links to the Category model
+        ref: 'Category', 
         required: true 
+    },
+    // Added Level field
+    level: {
+        type: String,
+        required: [true, "Level is required"],
+        enum: {
+            values: ['100L', '200L', '300L', '400L', '500L', 'Spillover'],
+            message: '{VALUE} is not a valid level'
+        }
+    },
+    // Optional: Add a bio or manifesto snippet
+    manifesto: {
+        type: String,
+        trim: true,
+        maxlength: [500, "Manifesto cannot exceed 500 characters"]
     },
     voteCount: { 
         type: Number, 
