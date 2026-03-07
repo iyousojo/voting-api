@@ -2,6 +2,7 @@ const adminService = require('../services/admin.service');
 const Admin = require('../models/Admin');
 const jwt = require('jsonwebtoken');
 const bcrypt = require('bcryptjs');
+const Category = require('../models/Category'); 
 
 class AdminController {
     // Auth: Register a new Admin
@@ -70,13 +71,34 @@ class AdminController {
         const results = await adminService.getLiveLeaderboard();
         res.status(200).json({ status: "success", results });
     }
-
+async getCategories(req, res) {
+        try {
+            const Category = require('../models/Category'); 
+            const categories = await Category.find();
+            res.status(200).json({ status: "success", data: categories });
+        } catch (error) {
+            res.status(500).json({ status: "error", message: error.message });
+        }
+    }
     async createCategory(req, res) {
         try {
             const { name, key } = req.body; 
             const category = await adminService.addCategory(name, key);
             res.status(201).json({ status: "success", data: category });
         } catch (error) { res.status(400).json({ status: "error", message: error.message }); }
+    }
+// Add this to your AdminController class
+async getTotalVotersCount(req, res) {
+        try {
+            // Use 'adminService' (the instance), not 'AdminService' (the class)
+            const count = await adminService.getTotalVoters();
+            res.status(200).json({
+                status: "success",
+                count: count
+            });
+        } catch (error) {
+            res.status(500).json({ status: "error", message: error.message });
+        }
     }
 }
 

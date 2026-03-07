@@ -38,43 +38,28 @@ class UserController {
         }
     }
 
-    async register(req, res) {
+async register(req, res) {
     try {
-        const { fullName, matNumber, studentId, phoneNumber, email } = req.body;
-
-        // 1. Basic Validation
-        if (!fullName || !matNumber || !studentId || !phoneNumber || !email) {
-            return res.status(400).json({ message: "All fields are required" });
+        const { username, password, adminSecret } = req.body;
+        
+        if (adminSecret !== process.env.ADMIN_REGISTRATION_SECRET) {
+            return res.status(403).json({ status: "error", message: "Invalid Secret Key" });
         }
 
-        // 2. Check if already registered
-        const existingVoter = await EligibleVoter.findOne({ 
-            $or: [{ matNumber: matNumber.toUpperCase() }, { email: email.toLowerCase() }] 
-        });
+        const admin = new Admin({ username, password });
+        await admin.save();
 
-        if (existingVoter) {
-            return res.status(400).json({ message: "Student with this Matric Number or Email already exists" });
-        }
-
-        // 3. Create New Voter
-        const newVoter = new EligibleVoter({
-            fullName,
-            matNumber,
-            studentId,
-            phoneNumber,
-            email
-        });
-
-        await newVoter.save();
-
-        res.status(201).json({ 
-            status: "success", 
-            message: "Registration successful! You can now log in to vote.",
-            data: { matNumber: newVoter.matNumber }
-        });
-
+        res.status(201).json({ status: "success", message: "Admin registered successfully!" });
     } catch (error) {
-        res.status(500).json({ message: error.message });
+        // Handle Duplicate Key Error (MongoDB code 11000)
+        if (error.code === 11000) {
+            return res.status(400).json({ 
+                status: "error", 
+                message: "Username already exists. Please choose another one." 
+            });
+        }
+        
+        res.status(400).json({ status: "error", message: error.message });
     }
 }
 
@@ -97,20 +82,25 @@ class UserController {
      * 2. POST cast a vote
      */
     async castVote(req, res) {
-        try {
-            const { participantId, voterId, deviceHash } = req.body;
+    try {
+        const { participantId, voterId, deviceHash } = req.body;
 
-            if (!participantId || !voterId || !deviceHash) {
-                return res.status(400).json({ status: "error", message: "Missing credentials" });
-            }
+        // 1. Validate input
+        if (!participantId || !voterId || !deviceHash) {
+            return res.status(400).json({ status: "error", message: "Missing credentials" });
+        }
 
-            // voterId here should be the matNumber passed from the login
-            const result = await userService.processVote(participantId, voterId, deviceHash);
-            
-            await logVoteActivity(req, 'SUCCESS');
+        // 2. Add an Election Status check here if not handled in service
+        const election = await Election.findOne();
+        if (!election || !election.isOpen || new Date() > election.endTime) {
+            return res.status(403).json({ status: "error", message: "Election is closed" });
+        }
 
-            res.status(200).json({ status: "success", data: result });
-        } catch (error) {
+        const result = await userService.processVote(participantId, voterId, deviceHash);
+        await logVoteActivity(req, 'SUCCESS');
+        res.status(200).json({ status: "success", data: result });
+
+    } catch (error) {
             await logVoteActivity(req, 'FAILED', error.message);
 
             // Refined Status Codes

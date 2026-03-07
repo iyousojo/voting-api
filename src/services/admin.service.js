@@ -2,6 +2,7 @@ const cloudinary = require('cloudinary').v2;
 const Participant = require('../models/Participant');
 const Category = require('../models/Category');
 const Election = require('../models/Election');
+const EligibleVoter = require('../models/EligibleVoter'); // Your voter model
 
 cloudinary.config({ 
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
@@ -48,11 +49,23 @@ class AdminService {
         });
     }
 
-    async fetchTotalParticipants() { return await Participant.countDocuments(); }
+    async fetchTotalParticipants() { 
+        return await Participant.countDocuments(); 
+    }
 
     async fetchTotalVotes() {
         const result = await Participant.aggregate([{ $group: { _id: null, totalVotes: { $sum: "$voteCount" } } }]);
         return result.length > 0 ? result[0].totalVotes : 0;
+    }
+
+    // UPDATED: Using the correct EligibleVoter model imported above
+    async getTotalVoters() {
+        try {
+            // This counts all records in your EligibleVoter collection
+            return await EligibleVoter.countDocuments(); 
+        } catch (error) {
+            throw new Error("Error fetching total voters: " + error.message);
+        }
     }
 
     async getLiveLeaderboard() {
