@@ -37,33 +37,50 @@ class UserController {
             res.status(500).json({ message: error.message });
         }
     }
-
 async register(req, res) {
-    try {
-        const { username, password, adminSecret } = req.body;
-        
-        if (adminSecret !== process.env.ADMIN_REGISTRATION_SECRET) {
-            return res.status(403).json({ status: "error", message: "Invalid Secret Key" });
-        }
+        try {
+            const { fullName, matNumber, studentId, phoneNumber, email } = req.body;
 
-        const admin = new Admin({ username, password });
-        await admin.save();
-
-        res.status(201).json({ status: "success", message: "Admin registered successfully!" });
-    } catch (error) {
-        // Handle Duplicate Key Error (MongoDB code 11000)
-        if (error.code === 11000) {
-            return res.status(400).json({ 
-                status: "error", 
-                message: "Username already exists. Please choose another one." 
+            // Check if user already exists
+            const existingUser = await User.findOne({ 
+                $or: [{ matNumber }, { studentId }, { email }] 
             });
-        }
-        
-        res.status(400).json({ status: "error", message: error.message });
-    }
-}
+            
+            if (existingUser) {
+                return res.status(400).json({ 
+                    status: "error", 
+                    message: "User with this Matric Number, ID, or Email already exists." 
+                });
+            }
 
-    /**
+            const newUser = new User({
+                fullName,
+                matNumber,
+                studentId,
+                phoneNumber,
+                email
+            });
+
+            await newUser.save();
+
+            // Generate token so they are logged in immediately after registering
+            const token = jwt.sign(
+                { id: newUser._id, role: 'voter' }, 
+                process.env.JWT_SECRET, 
+                { expiresIn: '2h' }
+            );
+
+            res.status(201).json({ 
+                status: "success", 
+                message: "Registration successful",
+                token 
+            });
+        } catch (error) {
+            res.status(500).json({ status: "error", message: error.message });
+        }
+    }
+
+   /**
      * 1. GET all categories and their candidates
      */
     async getBallot(req, res) {
