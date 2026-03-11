@@ -1,6 +1,8 @@
 const userService = require('../services/user.service');
 const { logVoteActivity } = require('../middlewares/audit.middleware');
-const EligibleVoter = require('../models/EligibleVoter'); // Added missing import
+const EligibleVoter = require('../models/EligibleVoter'); 
+const jwt = require('jsonwebtoken'); // <--- ADD THIS: Missing import
+const Election = require('../models/Election'); // Added missing import
 
 class UserController {
     /**
@@ -41,8 +43,8 @@ async register(req, res) {
         try {
             const { fullName, matNumber, studentId, phoneNumber, email } = req.body;
 
-            // Check if user already exists
-            const existingUser = await User.findOne({ 
+            // FIX: Changed 'User' to 'EligibleVoter'
+            const existingUser = await EligibleVoter.findOne({ 
                 $or: [{ matNumber }, { studentId }, { email }] 
             });
             
@@ -53,7 +55,8 @@ async register(req, res) {
                 });
             }
 
-            const newUser = new User({
+            // FIX: Changed 'User' to 'EligibleVoter'
+            const newUser = new EligibleVoter({
                 fullName,
                 matNumber,
                 studentId,
@@ -63,7 +66,7 @@ async register(req, res) {
 
             await newUser.save();
 
-            // Generate token so they are logged in immediately after registering
+            // This will now work because 'jwt' is imported above
             const token = jwt.sign(
                 { id: newUser._id, role: 'voter' }, 
                 process.env.JWT_SECRET, 
@@ -79,7 +82,6 @@ async register(req, res) {
             res.status(500).json({ status: "error", message: error.message });
         }
     }
-
    /**
      * 1. GET all categories and their candidates
      */
