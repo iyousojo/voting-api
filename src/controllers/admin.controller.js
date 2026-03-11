@@ -167,30 +167,14 @@ async stopElection(req, res) {
 // UPDATE your existing getResults method to include the title
 async getResults(req, res) {
     try {
-        const currentElection = await Election.findOne().sort({ createdAt: -1 });
+        // 1. Get the full data from the service (Title, Status, and Participants)
+        const boardData = await adminService.getLiveLeaderboard();
         
-        // If no election exists at all, status MUST be "Closed"
-        if (!currentElection) {
-            return res.status(200).json({ 
-                status: "success", 
-                results: {
-                    electionTitle: null,
-                    electionStatus: "Closed",
-                    leaderboard: []
-                }
-            });
-        }
-
-        const now = new Date();
-        const isActive = currentElection.isOpen && now < currentElection.endTime;
-
+        // 2. Simply send the data back. 
+        // Note: boardData.electionTitle and boardData.electionStatus are already calculated correctly in the service.
         res.status(200).json({ 
             status: "success", 
-            results: {
-                electionTitle: currentElection.title,
-                electionStatus: isActive ? "Active" : "Closed",
-                leaderboard: await adminService.getLiveLeaderboard() 
-            }
+            results: boardData
         });
     } catch (error) {
         res.status(500).json({ status: "error", message: error.message });

@@ -2,7 +2,7 @@ const cloudinary = require('cloudinary').v2;
 const Participant = require('../models/Participant');
 const Category = require('../models/Category');
 const Election = require('../models/Election');
-const EligibleVoter = require('../models/EligibleVoter'); // Your voter model
+const EligibleVoter = require('../models/EligibleVoter');
 
 cloudinary.config({ 
     cloud_name: process.env.CLOUDINARY_CLOUD_NAME, 
@@ -11,12 +11,66 @@ cloudinary.config({
 });
 
 class AdminService {
+    // 1. Initialize Election - Improved with explicit field handling
     async initializeElection(title, durationHours) {
+        // Clear previous election data
+        await Election.deleteMany({}); 
+        
         const endTime = new Date();
         endTime.setHours(endTime.getHours() + parseInt(durationHours));
-        await Election.deleteMany({}); 
-        return await Election.create({ title, endTime, isOpen: true });
+        
+        return await Election.create({ 
+            title: title.trim(), 
+            endTime, 
+            isOpen: true 
+        });
     }
+
+    // 2. Stop Election - Added logic to service layer
+    async stopElection() {
+        const election = await Election.findOneAndUpdate(
+            { isOpen: true },
+            { isOpen: false, endTime: new Date() },
+            { new: true }
+        );
+        if (!election) throw new Error("No active election found to stop.");
+        return election;
+    }
+
+    // 3. Get Live Leaderboard - FIXED STATUS LOGIC
+    async getLiveLeaderboard() {
+        const participants = await Participant.find().populate('category').sort({ voteCount: -1 });
+        const election = await Election.findOne().sort({ createdAt: -1 });
+
+        let status = "Closed"; // Default to closed
+        let title = "No Election Setup";
+
+        if (election) {
+            title = election.title;
+            const now = new Date();
+            // It is only Active if isOpen is true AND we haven't passed the endTime
+            if (election.isOpen && now < election.endTime) {
+                status = "Active";
+            } else {
+                status = "Closed";
+            }
+        }
+
+        return {
+            electionTitle: title,
+            electionStatus: status,
+            results: participants.map(p => ({
+                name: p.name,
+                level: p.level,
+                manifesto: p.manifesto,
+                profileImage: p.profileImage,
+                category: p.category ? p.category.name : "Uncategorized",
+                votes: p.voteCount
+            }))
+        };
+    }
+
+    // --- Other Methods ---
 
     async addCategory(name, key) {
         const normalizedKey = key.toLowerCase();
@@ -58,32 +112,12 @@ class AdminService {
         return result.length > 0 ? result[0].totalVotes : 0;
     }
 
-    // UPDATED: Using the correct EligibleVoter model imported above
     async getTotalVoters() {
         try {
-            // This counts all records in your EligibleVoter collection
             return await EligibleVoter.countDocuments(); 
         } catch (error) {
             throw new Error("Error fetching total voters: " + error.message);
         }
-    }
-
-    async getLiveLeaderboard() {
-        const participants = await Participant.find().populate('category').sort({ voteCount: -1 });
-        const election = await Election.findOne();
-        const isExpired = election && new Date() > election.endTime;
-
-        return {
-            electionStatus: isExpired ? "Closed" : "Active",
-            results: participants.map(p => ({
-                name: p.name,
-                level: p.level,
-                manifesto: p.manifesto,
-                profileImage: p.profileImage,
-                category: p.category ? p.category.name : "Uncategorized",
-                votes: p.voteCount
-            }))
-        };
     }
 }
 
