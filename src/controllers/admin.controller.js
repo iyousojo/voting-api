@@ -167,21 +167,29 @@ async stopElection(req, res) {
 // UPDATE your existing getResults method to include the title
 async getResults(req, res) {
     try {
-        const results = await adminService.getLiveLeaderboard();
-        
-        // Find the most recent or active election to get the title
         const currentElection = await Election.findOne().sort({ createdAt: -1 });
         
-        const status = (currentElection && currentElection.isOpen && new Date() < currentElection.endTime) 
-            ? "Active" 
-            : "Closed";
+        // If no election exists at all, status MUST be "Closed"
+        if (!currentElection) {
+            return res.status(200).json({ 
+                status: "success", 
+                results: {
+                    electionTitle: null,
+                    electionStatus: "Closed",
+                    leaderboard: []
+                }
+            });
+        }
+
+        const now = new Date();
+        const isActive = currentElection.isOpen && now < currentElection.endTime;
 
         res.status(200).json({ 
             status: "success", 
             results: {
-                electionTitle: currentElection ? currentElection.title : "No Election Setup",
-                electionStatus: status,
-                leaderboard: results
+                electionTitle: currentElection.title,
+                electionStatus: isActive ? "Active" : "Closed",
+                leaderboard: await adminService.getLiveLeaderboard() 
             }
         });
     } catch (error) {
