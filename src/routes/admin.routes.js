@@ -21,5 +21,6 @@ router.post('/setup', adminController.setupElection);
 router.get('/totalparticipants', adminController.getTotalParticipants);
 router.get('/totalvotes', adminController.getTotalVotes);
 router.get('/dashboard', adminController.getResults);
-
+// Add this route with your other protected routes
+router.post('/stop-election', adminController.stopElection);
 module.exports = router;
